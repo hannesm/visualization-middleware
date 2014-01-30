@@ -17,10 +17,8 @@ function toArray (xs) {
 
 
 function initialize () {
-    var graph = new Graph()
     var canvas = document.getElementById('canvas')
-    var ctx = canvas.getContext('2d')
-    graph.context = ctx
+    var graph = new Graph(canvas)
     canvas.onclick = function (event) {
         var x = event.pageX - canvas.offsetLeft
         var y = event.pageY - canvas.offsetTop
@@ -56,8 +54,8 @@ function initialize () {
 
     var layout = document.getElementById("layout")
     layout.onclick = function () {
-        graph.layout(canvas)
-        graph.draw(ctx)
+        graph.layout()
+        graph.draw()
     }
 
 }
