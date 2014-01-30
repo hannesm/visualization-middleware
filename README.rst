@@ -11,7 +11,7 @@ Dependencies
 * An open dylan compiler from `opendylan <https://opendylan.org>`__
 * `http server <https://github.com/dylan-lang/http>`__
 * `serialization <https://github.com/dylan-foundry/serialization>`__
-* `graph.js <https://github.com/hannesm/graph.js`__
+* `graph.js <https://github.com/hannesm/graph.js>`__
 
 Installation
 ============
