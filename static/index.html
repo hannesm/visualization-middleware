@@ -1,0 +1,22 @@
+<html>
+<link rel="stylesheet" href="my.css" />
+<script src="gui.js"></script>
+<script src="graph/utils.js"></script>
+<script src="graph/PolarPoint.js"></script>
+<script src="graph/Edge.js"></script>
+<script src="graph/Node.js"></script>
+<script src="graph/Graph.js"></script>
+<script>window.onload = initialize</script>
+<body>
+  <div class="graph">
+    <canvas id="canvas" class="canvas" width="800" height="300"></canvas>
+    <input type="button" value="Layout!" id="layout"></input>
+  </div>
+
+  <div id="output"></div>
+  <div id="debug"></div>
+  <div>
+    <ul id="phases"></ul>
+  </div>
+</body>
+</html>

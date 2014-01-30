@@ -1,0 +1,11 @@
+.error {
+    background-color:#DDAAAA;
+    border: 1px solid black;
+    margin: 2px;
+}
+
+.highlight {
+    background-color:#AADDAA;
+}
+
+.canvas { border: 1px solid black; }
