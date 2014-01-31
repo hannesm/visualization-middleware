@@ -33,26 +33,25 @@ function initialize () {
     var debug = document.getElementById("debug")
 
 
+    var lastfun = ""
     function handle_event (output, control, graph, event) {
         output.className = "normal"
         try {
-            if (shouldi) {
-                console.log("starting handler")
-                var val = event.data
-                var res = eval(val)[0]
-                var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
-                var args = [graph, res]
-                if (res.nodeid != undefined)
-                    args.push(graph.findNodeByID(res.nodeid))
-                if (res.other != undefined)
-                    args.push(graph.findNodeByID(res.other))
-                if (res.old != undefined)
-                    args.push(graph.findNodeByID(res.old))
-                console.log("fun is " + fun)
-                control[fun].apply(control, args)
-                console.log("safely called")
-            }
+            var val = event.data
+            var res = eval(val)[0]
+            var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
+            lastfun = fun
+            var args = [graph, res]
+            if (res.nodeid != undefined)
+                args.push(graph.findNodeByID(res.nodeid))
+            if (res.other != undefined)
+                args.push(graph.findNodeByID(res.other))
+            if (res.old != undefined)
+                args.push(graph.findNodeByID(res.old))
+            control[fun].apply(control, args)
+            console.log("safely called " + fun)
         } catch (e) {
+            console.log("failed at or after " + lastfun)
             output.className = "error"
             output.innerHTML = "error during " +  event + ": " + e
         }
@@ -77,7 +76,8 @@ function Control () {
 
 Control.prototype = {
     handle_hello: function (graph, json) {
-        document.getElementById('debug').innerHTML = "hello from " + json["connection-identifier"]
+        //clearing graphs
+        graph.clear()
     },
 
     handle_new_computation: function (graph, json) {
@@ -87,18 +87,15 @@ Control.prototype = {
     handle_add_temporary: function (graph, json, node, other) {
         var node = graph.insertNodeByID(json.nodeid, json.description[1])
         node.fillStyle = "lightblue"
-        if (other) {
-            var edge = graph.connect(other, node)
-            edge.strokeStyle = "lightblue"
-        }
+        //it is the generator!
+        var edge = graph.connect(other, node)
+        edge.strokeStyle = "lightblue"
     },
 
     handle_next_computation_setter: function (graph, json, node, other, old) {
-        if (old) graph.disconnect(node, old)
-        if (other) {
-            var edge = graph.connect(node, other)
-            edge.strokeStyle = "black"
-        }
+        graph.disconnect(node, old)
+        var edge = graph.connect(node, other)
+        edge.strokeStyle = "black"
     },
 
     handle_remove_temporary: function (graph, json, node) {
@@ -110,10 +107,22 @@ Control.prototype = {
     },
 
     handle_remove_temporary_user: function (graph, json, node, other) {
-        graph.disconnect(other, node)
+        graph.disconnect(node, other)
     },
 
     handle_add_temporary_user: function (graph, json, node, other) {
+        var edge = graph.connect(node, other)
+        edge.strokeStyle = "lightblue"
+    },
+
+    handle_function_setter: function (graph, json, node, other, old) {
+        graph.disconnect(old, node)
+        var edge = graph.connect(other, node)
+        edge.strokeStyle = "lightblue"
+    },
+
+    handle_generator_setter: function (graph, json, node, other, old) {
+        graph.disconnect(old, node)
         var edge = graph.connect(other, node)
         edge.strokeStyle = "lightblue"
     },
