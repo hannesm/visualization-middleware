@@ -19,6 +19,7 @@ function toArray (xs) {
 function initialize () {
     var canvas = document.getElementById('canvas')
     var graph = new Graph(canvas)
+    graph.layouter = new HierarchicLayouter(canvas.width, canvas.height)
     canvas.onclick = function (event) {
         var x = event.pageX - canvas.offsetLeft
         var y = event.pageY - canvas.offsetTop
