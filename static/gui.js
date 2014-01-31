@@ -90,6 +90,22 @@ Control.prototype = {
         }
     },
 
+    handle_remove_temporary: function (graph, json) {
+        var node = graph.findNodeByID(json.nodeid)
+        if (node)
+            graph.remove(node)
+    },
+
+
+    handle_remove_temporary_user: function (graph, json) {
+        var node = graph.findNodeByID(json.nodeid)
+        var o = null
+        if (json.other)
+            o = graph.findNodeByID(json.other)
+        if (o)
+            graph.disconnect(o, node, "data")
+    },
+
     handle_add_temporary_user: function (graph, json) {
         var node = graph.findNodeByID(json.nodeid)
         var o = null
