@@ -15,6 +15,7 @@ function toArray (xs) {
   return Array.prototype.slice.call(xs)
 }
 
+var shouldi = true
 
 function initialize () {
     var canvas = document.getElementById('canvas')
@@ -35,12 +36,22 @@ function initialize () {
     function handle_event (output, control, graph, event) {
         output.className = "normal"
         try {
-            var val = event.data
-            var res = eval(val)[0]
-            var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
-            console.log("fun is " + fun)
-            control[fun](graph, res)
-            console.log("safely called")
+            if (shouldi) {
+                console.log("starting handler")
+                var val = event.data
+                var res = eval(val)[0]
+                var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
+                var args = [graph, res]
+                if (res.nodeid != undefined)
+                    args.push(graph.findNodeByID(res.nodeid))
+                if (res.other != undefined)
+                    args.push(graph.findNodeByID(res.other))
+                if (res.old != undefined)
+                    args.push(graph.findNodeByID(res.old))
+                console.log("fun is " + fun)
+                control[fun].apply(control, args)
+                console.log("safely called")
+            }
         } catch (e) {
             output.className = "error"
             output.innerHTML = "error during " +  event + ": " + e
@@ -66,56 +77,50 @@ function Control () {
 
 Control.prototype = {
     handle_hello: function (graph, json) {
-        console.log("handler called")
-        alert("hello " + json["connection-identifier"])
+        document.getElementById('debug').innerHTML = "hello from " + json["connection-identifier"]
     },
 
     handle_new_computation: function (graph, json) {
         graph.insertNodeByID(json.nodeid, json.description[1])
     },
 
-    handle_add_temporary: function (graph, json) {
-        graph.insertNodeByID(json.nodeid, json.description[1])
-    },
-
-    handle_next_computation_setter: function (graph, json) {
-        var node = graph.findNodeByID(json.nodeid)
-        var n, o = null
-        if (json.other)
-            n = graph.findNodeByID(json.other)
-        if (json.old)
-            o = graph.findNodeByID(json.old)
-        if (n != o) {
-            if (o) graph.disconnect(node, o)
-            if (n) graph.connect(node, n, "control")
+    handle_add_temporary: function (graph, json, node, other) {
+        var node = graph.insertNodeByID(json.nodeid, json.description[1])
+        node.fillStyle = "lightblue"
+        if (other) {
+            var edge = graph.connect(other, node)
+            edge.strokeStyle = "lightblue"
         }
     },
 
-    handle_remove_temporary: function (graph, json) {
-        var node = graph.findNodeByID(json.nodeid)
-        if (node)
-            graph.remove(node)
+    handle_next_computation_setter: function (graph, json, node, other, old) {
+        if (old) graph.disconnect(node, old)
+        if (other) {
+            var edge = graph.connect(node, other)
+            edge.strokeStyle = "black"
+        }
     },
 
-
-    handle_remove_temporary_user: function (graph, json) {
-        var node = graph.findNodeByID(json.nodeid)
-        var o = null
-        if (json.other)
-            o = graph.findNodeByID(json.other)
-        if (o)
-            graph.disconnect(o, node, "data")
+    handle_remove_temporary: function (graph, json, node) {
+        graph.remove(node)
     },
 
-    handle_add_temporary_user: function (graph, json) {
-        var node = graph.findNodeByID(json.nodeid)
-        var o = null
-        if (json.other)
-            o = graph.findNodeByID(json.other)
-        if (o)
-            graph.connect(o, node, "data")
+    handle_remove_computation: function (graph, json, node) {
+        graph.remove(node)
+    },
+
+    handle_remove_temporary_user: function (graph, json, node, other) {
+        graph.disconnect(other, node)
+    },
+
+    handle_add_temporary_user: function (graph, json, node, other) {
+        var edge = graph.connect(other, node)
+        edge.strokeStyle = "lightblue"
+    },
+
+    handle_highlight_queue: function (graph, json) {
+        shouldi = false
     }
-
 }
 
 function clear_element (element) {
