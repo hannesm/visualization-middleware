@@ -34,15 +34,15 @@ function initialize () {
             var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
             console.log("fun is " + fun)
             control.lastfun = fun
-            var model = control.models[res.formid]
+            var model = control.models[res.method]
             if (model == undefined) {
                 console.log("I create a new model now")
                 var graph = new Graph(canvas)
                 graph.layouter = new HierarchicLayouter(canvas.width, canvas.height)
-                model = new Model(res.formid, graph)
-                control.models[res.formid] = model
+                model = new Model(res.method, graph)
+                control.models[res.method] = model
                 var li = document.createElement("li")
-                li.innerHTML = res.formid
+                li.innerHTML = res.method
                 var cb = function (c, m) { c.setActiveModel(m) }
                 li.onclick = cb.curry(control, model)
                 forms.appendChild(li)
@@ -128,8 +128,8 @@ function Phase (name, graph) {
     this.name = name
     this.graph = graph
 }
-function Model (form, graph) {
-    this.formid = form
+function Model (method, graph) {
+    this.method = method
     this.phases = [new Phase("initial", graph)]
     this.activePhase = this.phases[0]
 }
