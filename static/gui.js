@@ -18,78 +18,61 @@ function toArray (xs) {
 function initialize () {
     var canvas = document.getElementById('canvas')
     var control = new Control()
-    var debug = document.getElementById("debug")
-    var cb = function (canvas, control, output, event) {
+    var cb = function (canvas, control, event) {
         var x = event.pageX - canvas.offsetLeft
         var y = event.pageY - canvas.offsetTop
         var node = control.activeModel.getGraph().findNodeAt(x, y)
         control.activeModel.getGraph().setselected(node)
-        output.innerHTML = "node is: " + node.value
     }
-    canvas.onclick = cb.curry(canvas, control, debug)
+    canvas.onclick = cb.curry(canvas, control)
 
-    function handle_event (output, control, forms, phases, event) {
-        output.className = "normal"
+    function handle_event (debug, control, forms, event) {
         try {
             var val = event.data
+            console.log("data: " + val)
             var res = eval(val)[0]
             var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
+            console.log("fun is " + fun)
             control.lastfun = fun
-            if (fun == "handle_hello") {
-                control.resetModels()
-                clearElement(forms)
-                clearElement(phases)
-                console.log("successfully cleaned up")
-            } else {
-                if (res.formid) {
-                    var model = control.models[res.formid]
-                    if (model == undefined) {
-                        console.log("I create a new model now")
-                        var graph = new Graph(canvas)
-                        graph.layouter = new HierarchicLayouter(canvas.width, canvas.height)
-                        model = new Model(res.formid, graph)
-                        control.models[res.formid] = model
-                        var li = document.createElement("li")
-                        li.innerHTML = res.formid
-                        var cb = function (c, m) { c.setActiveModel(m) }
-                        li.onclick = cb.curry(control, model)
-                        forms.appendChild(li)
-                        if (control.activeModel == undefined)
-                            control.setActiveModel(model)
-                    }
-                    var graph = model.getGraph()
-                    var args = [graph, res]
-                    if (fun == "handle_optimizing")
-                        console.log("we want to break")
-                    if (res.nodeid != undefined)
-                        args.push(graph.findNodeByID(res.nodeid))
-                    if (res.other != undefined)
-                        args.push(graph.findNodeByID(res.other))
-                    if (res.old != undefined)
-                        args.push(graph.findNodeByID(res.old))
-                    control[fun].apply(control, args)
-                    console.log("safely called " + fun)
-                } else {
-                    var args = [res]
-                    control[fun].apply(control, args)
-                    console.log("safely called (without form!) " + fun)
-                }
+            var model = control.models[res.formid]
+            if (model == undefined) {
+                console.log("I create a new model now")
+                var graph = new Graph(canvas)
+                graph.layouter = new HierarchicLayouter(canvas.width, canvas.height)
+                model = new Model(res.formid, graph)
+                control.models[res.formid] = model
+                var li = document.createElement("li")
+                li.innerHTML = res.formid
+                var cb = function (c, m) { c.setActiveModel(m) }
+                li.onclick = cb.curry(control, model)
+                forms.appendChild(li)
+                if (control.activeModel == undefined)
+                    control.setActiveModel(model)
             }
+            var graph = model.getGraph()
+            var args = [graph, res]
+            if (res.nodeid != undefined)
+                args.push(graph.findNodeByID(res.nodeid))
+            if (res.other != undefined)
+                args.push(graph.findNodeByID(res.other))
+            if (res.old != undefined)
+                args.push(graph.findNodeByID(res.old))
+            control[fun].apply(control, args)
+            console.log("safely called " + fun)
         } catch (e) {
-            console.log("failed at or after " + control.lastfun + " with " + e.message)
-            output.className = "error"
-            output.innerHTML = "error during " +  event + ": " + e
+            var li = document.createElement("li")
+            li.innerHTML = "error during " +  event + ": " + e.message
+            li.className = "error"
+            debug.appendChild(li)
         }
     }
 
 
-    var output = document.getElementById("output")
     var forms = document.getElementById("forms")
-    var phases = document.getElementById("phases")
+    var debug = document.getElementById("debug")
 
     var evtSource = new EventSource("events")
-    evtSource.onmessage = handle_event.curry(output, control, forms, phases)
-
+    evtSource.onmessage = handle_event.curry(debug, control, forms)
 
     var layout = document.getElementById("layout")
     layout.onclick = function () {
@@ -97,7 +80,49 @@ function initialize () {
         control.activeModel.getGraph().draw()
     }
 
+
+    var output = document.getElementById("output")
+    var shell = document.getElementById("shell")
+    shell.onkeyup = handleKeypress.curry(output, shell, control)
 }
+
+function handleKeypress (output, inputfield, control, event) {
+    var keyCode = ('which' in event) ? event.which : event.keyCode
+    var val = inputfield.value
+    var cb = function (control, output, inputfield) {
+        var value = this.responseText
+        var res = eval(value)[0]
+        if (res.type == "error") {
+            output.className = "error"
+            output.innerHTML = res.message
+        } else {
+            inputfield.value = ""
+            output.className = "highlight"
+            control["execute" + res.type](output, res)
+        }
+    }
+
+    switch (keyCode) {
+    case 13: //return
+        var cmd = val.split(" ")
+        if (control["before" + cmd[0]])
+            control["before" + cmd[0]]()
+        var oReq = new XMLHttpRequest()
+        oReq.onload = cb.curry(control, output, inputfield)
+        oReq.open("get", ("/execute/" + cmd.join("/")), true)
+        oReq.send()
+        break
+    case 191: //?
+        var oReq = new XMLHttpRequest()
+        oReq.onload = cb.curry(control, output, inputfield)
+        oReq.open("get", ("/execute/help"), true)
+        oReq.send()
+        break
+    default:
+    }
+}
+
+
 
 function Phase (name, graph) {
     this.name = name
@@ -134,6 +159,64 @@ function Control () {
     this.models = null
 }
 Control.prototype = {
+    executehelp: function (output, res) {
+        clearElement(output)
+        var table = document.createElement("table")
+        var tr = document.createElement("tr")
+        var f = document.createElement("th")
+        f.innerHTML = "Command"
+        tr.appendChild(f)
+        var g = document.createElement("th")
+        g.innerHTML = "Description"
+        tr.appendChild(g)
+        var h = document.createElement("th")
+        h.innerHTML = "Signature"
+        tr.appendChild(h)
+        table.appendChild(tr)
+
+        for (var i = 0 ; i < res.commands.length ; i++) {
+            var tr = document.createElement("tr")
+            var json = res.commands[i]
+
+            var nametd = document.createElement("td")
+            nametd.innerHTML = json.name
+            tr.appendChild(nametd)
+
+            var descriptiontd = document.createElement("td")
+            descriptiontd.innerHTML = json.description
+            tr.appendChild(descriptiontd)
+
+            var signaturetd = document.createElement("td")
+            signaturetd.innerHTML = json.signature
+            tr.appendChild(signaturetd)
+
+            table.appendChild(tr)
+        }
+        output.appendChild(table)
+    },
+
+    executelist: function (output, res) {
+        clearElement(output)
+        var ul = document.createElement("ul")
+        for (var i = 0 ; i < res.projects.length ; i++) {
+            var li = document.createElement("li")
+            li.innerHTML = res.projects[i]
+            ul.appendChild(li)
+        }
+        output.appendChild(ul)
+    },
+
+    beforebuild: function () {
+        this.resetModels()
+        var forms = document.getElementById("forms")
+        clearElement(forms)
+        var phases = document.getElementById("phases")
+        clearElement(phases)
+        var debug = document.getElementById("debug")
+        clearElement(debug)
+        console.log("successfully cleaned up")
+    },
+
     resetModels: function () {
         this.models = new Object()
         this.activemodel = null

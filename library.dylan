@@ -4,7 +4,19 @@ define library visualization-middleware
   use common-dylan;
   use io;
   use system;
-  use network;
+
+  //compiler internals
+  use registry-projects;
+  use dfmc-flow-graph;
+  use dfmc-debug-back-end;
+  use environment-protocols;
+  //for target-platform-name
+  use build-system;
+  //for find-project implementation
+  use dfmc-environment-projects;
+  //dfmc-conversion calls word-size(),
+  //which calls back-end-word-size(current-backend())
+  use dfmc-back-end-implementations;
 
   use http-common;
   use http-server;
@@ -21,13 +33,19 @@ define module visualization-middleware
   use streams;
   use threads;
   use print;
+  use file-system;
 
-  use sockets;
+  //compiler internals
+  use registry-projects;
+  use dfmc-flow-graph;
+  use dfmc-debug-back-end;
+  use environment-protocols, exclude: { application-arguments,
+                                        application-filename };
+  use build-system, import: { target-platform-name };
 
   //web stuff
   use http-common;
   use http-server;
 
-  use serialization;
   use json-serialization;
 end module;
