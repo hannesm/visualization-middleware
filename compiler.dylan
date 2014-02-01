@@ -1,4 +1,10 @@
 module: visualization-middleware
+Author:   Hannes Mehnert, Bastian Mueller
+Synopsis: compiler frontend for the web services
+Copyright:    Dylan Hackers 2014, originally from dswank and web-ide-backend
+License:      See LICENSE.txt in this distribution for details.
+Warranty:     Distributed WITHOUT WARRANTY OF ANY KIND
+
 
 define function callback-handler (#rest args)
   log-debug("%=\n", args);

@@ -1,5 +1,9 @@
 module: visualization-middleware
-
+Author:   Hannes Mehnert
+Synopsis: main function initializing the web server
+Copyright:    Dylan Hackers 2014
+License:      See LICENSE.txt in this distribution for details.
+Warranty:     Distributed WITHOUT WARRANTY OF ANY KIND
 
 define function main ()
   let server = make(<http-server>,

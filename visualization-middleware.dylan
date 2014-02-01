@@ -1,4 +1,9 @@
 module: visualization-middleware
+Author:   Hannes Mehnert
+Synopsis: tracing for computations for live visualizations
+Copyright:    Dylan Hackers 2014
+License:      See LICENSE.txt in this distribution for details.
+Warranty:     Distributed WITHOUT WARRANTY OF ANY KIND
 
 define function dbg (#rest args)
   apply(format-out, args);
