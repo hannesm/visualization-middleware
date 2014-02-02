@@ -29,10 +29,8 @@ function initialize () {
     function handle_event (debug, control, forms, event) {
         try {
             var val = event.data
-            console.log("data: " + val)
             var res = eval(val)[0]
             var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
-            console.log("fun is " + fun)
             control.lastfun = fun
             var model = control.models[res.method]
             if (model == undefined) {
@@ -50,7 +48,7 @@ function initialize () {
                     control.setActiveModel(model)
             }
             var graph = model.getGraph()
-            var args = [graph, res]
+            var args = [model, graph, res]
             if (res.nodeid != undefined)
                 args.push(graph.findNodeByID(res.nodeid))
             if (res.other != undefined)
@@ -61,7 +59,7 @@ function initialize () {
             console.log("safely called " + fun)
         } catch (e) {
             var li = document.createElement("li")
-            li.innerHTML = "error during " +  event + ": " + e.message
+            li.innerHTML = "error during " + control.lastfun + " data: " + event.data + ": " + e.message
             li.className = "error"
             debug.appendChild(li)
         }
@@ -132,6 +130,7 @@ function Model (method, graph) {
     this.method = method
     this.phases = [new Phase("initial", graph)]
     this.activePhase = this.phases[0]
+    this.ready = false
 }
 Model.prototype = {
     getGraph: function () {
@@ -147,6 +146,8 @@ Model.prototype = {
     addPhase: function (name, force) {
         if (! this.getGraph().modified)
             this.phases.pop
+        else
+            this.activePhase.graph.mutable = false
         var graph = this.getGraph().copy()
         var phase = new Phase(name, graph)
         this.phases.push(phase)
@@ -157,6 +158,7 @@ Model.prototype = {
 function Control () {
     this.activeModel = null
     this.models = null
+    this.lastfun = ""
 }
 Control.prototype = {
     executehelp: function (output, res) {
@@ -206,6 +208,31 @@ Control.prototype = {
         output.appendChild(ul)
     },
 
+    executefilter: function (output, res) {
+        clearElement(output)
+        var ul = document.createElement("ul")
+        var l = document.createElement("li")
+        l.innerHTML = "library: " + res.library
+        ul.appendChild(l)
+        var f = document.createElement("li")
+        f.innerHTML = "file: " + res.file
+        ul.appendChild(f)
+        var m = document.createElement("li")
+        m.innerHTML = "method: " + res.method
+        ul.appendChild(m)
+        output.appendChild(ul)
+    },
+
+    executebuild: function (output, res) {
+        clearElement(output)
+        var ul = document.createElement("ul")
+        var l = document.createElement("li")
+        l.innerHTML = "build successful!"
+        l.className = "highlight"
+        ul.appendChild(l)
+        output.appendChild(ul)
+    },
+
     beforebuild: function () {
         this.resetModels()
         var forms = document.getElementById("forms")
@@ -219,7 +246,7 @@ Control.prototype = {
 
     resetModels: function () {
         this.models = new Object()
-        this.activemodel = null
+        this.activeModel = null
     },
 
     setActiveModel: function (model) {
@@ -228,8 +255,9 @@ Control.prototype = {
         var phaselist = document.getElementById("phases")
         clearElement(phaselist)
         for (var i = 0 ; i < model.phases.length ; i++) {
+            var phase = model.phases[i]
             var ele = document.createElement("li")
-            ele.innerHTML = model.phases[i].name
+            ele.innerHTML = "[" + phase.graph.nodes.length + " N, " + phase.graph.edges.length + " E] " + phase.name
             var cb = function (model, phase) {
                 model.setActivePhase(phase)
             }
@@ -238,11 +266,11 @@ Control.prototype = {
         }
     },
 
-    handle_new_computation: function (graph, json) {
+    handle_new_computation: function (model, graph, json) {
         graph.insertNodeByID(json.nodeid, json.description[1])
     },
 
-    handle_new_temporary: function (graph, json, node, other) {
+    handle_new_temporary: function (model, graph, json, node, other) {
         var node = graph.insertNodeByID(json.nodeid, json.description[1])
         node.fillStyle = "lightblue"
         //it is the generator!
@@ -251,7 +279,7 @@ Control.prototype = {
             edge.strokeStyle = "lightblue"
     },
 
-    handle_new_object_reference: function (graph, json, node, other) {
+    handle_new_object_reference: function (model, graph, json, node, other) {
         var node = graph.insertNodeByID(json.nodeid, json.description[1])
         node.fillStyle = "lightblue"
         //it is the first user!
@@ -260,52 +288,64 @@ Control.prototype = {
             edge.strokeStyle = "lightblue"
     },
 
-    handle_next_computation_setter: function (graph, json, node, other, old) {
+    handle_next_computation_setter: function (model, graph, json, node, other, old) {
         graph.disconnect(node, old)
         var edge = graph.connect(node, other)
         if (edge)
             edge.strokeStyle = "black"
     },
 
-    handle_remove_temporary: function (graph, json, node) {
+    handle_remove_temporary: function (model, graph, json, node) {
         graph.remove(node)
     },
 
-    handle_remove_computation: function (graph, json, node) {
+    handle_remove_computation: function (model, graph, json, node) {
         graph.remove(node)
     },
 
-    handle_remove_temporary_user: function (graph, json, node, other) {
+    handle_remove_temporary_user: function (model, graph, json, node, other) {
         graph.disconnect(node, other)
     },
 
-    handle_add_temporary_user: function (graph, json, node, other) {
+    handle_add_temporary_user: function (model, graph, json, node, other) {
         var edge = graph.connect(node, other)
         if (edge)
             edge.strokeStyle = "lightblue"
     },
 
-    handle_function_setter: function (graph, json, node, other, old) {
+    handle_function_setter: function (model, graph, json, node, other, old) {
         graph.disconnect(old, node)
         var edge = graph.connect(other, node)
         if (edge)
             edge.strokeStyle = "lightblue"
     },
 
-    handle_generator_setter: function (graph, json, node, other, old) {
+    handle_generator_setter: function (model, graph, json, node, other, old) {
         graph.disconnect(old, node)
         var edge = graph.connect(other, node)
         if (edge)
             edge.strokeStyle = "lightblue"
     },
 
-    handle_start_phase_for_code: function (graph, json) {
-        this.activeModel.addPhase(json.description, true)
+    handle_computation_type_setter: function (model, graph, json, node) {
+        node.value = json.description
     },
 
-    handle_optimizing: function (graph, json, node) {
-        this.activeModel.addPhase(json.description + node.value)
-    }
+    handle_start_phase_for_code: function (model, graph, json) {
+        model.addPhase(json.description, true)
+    },
+
+    handle_optimizing: function (model, graph, json, node) {
+        model.addPhase(json.description + node.value)
+    },
+
+    handle_finished_phase_for_code: function (model, graph, json, node) {
+        model.ready = true
+    },
+
+    handle_highlight_queue: function (model, graph, json) {
+        //ignore for now
+    },
 }
 
 function clearElement (element) {
