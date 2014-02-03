@@ -30,33 +30,38 @@ function initialize () {
         try {
             var val = event.data
             var res = eval(val)[0]
-            var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_")
+            var fun = "handle_" + res.type.replace(new RegExp("-", 'g'), "_").replace("?", "Q")
             control.lastfun = fun
-            var model = control.models[res.method]
+            var id = res.library + ":" + res.file + ":" + res.method
+            var model = control.models[id]
             if (model == undefined) {
                 console.log("I create a new model now")
                 var graph = new Graph(canvas)
                 graph.layouter = new HierarchicLayouter(canvas.width, canvas.height)
-                model = new Model(res.method, graph)
-                control.models[res.method] = model
+                model = new Model(id, graph)
+                control.models[id] = model
                 var li = document.createElement("li")
-                li.innerHTML = res.method
+                li.innerHTML = id
                 var cb = function (c, m) { c.setActiveModel(m) }
                 li.onclick = cb.curry(control, model)
                 forms.appendChild(li)
                 if (control.activeModel == undefined)
                     control.setActiveModel(model)
             }
-            var graph = model.getGraph()
-            var args = [model, graph, res]
-            if (res.nodeid != undefined)
-                args.push(graph.findNodeByID(res.nodeid))
-            if (res.other != undefined)
-                args.push(graph.findNodeByID(res.other))
-            if (res.old != undefined)
-                args.push(graph.findNodeByID(res.old))
-            control[fun].apply(control, args)
-            console.log("safely called " + fun)
+            try {
+                var graph = model.getGraph()
+                var args = [model, graph, res]
+                if (res.nodeid != undefined)
+                    args.push(graph.findNodeByID(res.nodeid))
+                if (res.other != undefined)
+                    args.push(graph.findNodeByID(res.other))
+                if (res.old != undefined)
+                    args.push(graph.findNodeByID(res.old))
+                control[fun].apply(control, args)
+                console.log("safely called " + fun)
+            } catch (e) {
+                model.errors.push([e, fun, val])
+            }
         } catch (e) {
             var li = document.createElement("li")
             li.innerHTML = "error during " + control.lastfun + " data: " + event.data + ": " + e.message
@@ -131,6 +136,7 @@ function Model (method, graph) {
     this.phases = [new Phase("initial", graph)]
     this.activePhase = this.phases[0]
     this.ready = false
+    this.errors = []
 }
 Model.prototype = {
     getGraph: function () {
@@ -252,6 +258,15 @@ Control.prototype = {
     setActiveModel: function (model) {
         this.activeModel = model
         //need to care about canvas stuff
+        var debuglist = document.getElementById("debug")
+        clearElement(debuglist)
+        for (var i = 0 ; i < model.errors.length ; i++) {
+            var err = model.errors[i]
+            var ele = document.createElement("li")
+            ele.innerHTML = err[0].message + " in " + err[1] + ", data: " + err[2]
+            debug.appendChild(ele)
+        }
+
         var phaselist = document.getElementById("phases")
         clearElement(phaselist)
         for (var i = 0 ; i < model.phases.length ; i++) {
@@ -295,6 +310,20 @@ Control.prototype = {
             edge.strokeStyle = "black"
     },
 
+    handle_consequent_setter: function (model, graph, json, node, other, old) {
+        graph.disconnect(node, old)
+        var edge = graph.connect(node, other)
+        if (edge)
+            edge.strokeStyle = "green"
+    },
+
+    handle_alternative_setter: function (model, graph, json, node, other, old) {
+        graph.disconnect(node, old)
+        var edge = graph.connect(node, other)
+        if (edge)
+            edge.strokeStyle = "red"
+    },
+
     handle_remove_temporary: function (model, graph, json, node) {
         graph.remove(node)
     },
@@ -320,6 +349,11 @@ Control.prototype = {
             edge.strokeStyle = "lightblue"
     },
 
+    handle_call_iepQ_setter: function (model, graph, json, node) {
+        if (json.description == true)
+            node.setValue("IEP " + node.value)
+    },
+
     handle_generator_setter: function (model, graph, json, node, other, old) {
         graph.disconnect(old, node)
         var edge = graph.connect(other, node)
@@ -328,7 +362,7 @@ Control.prototype = {
     },
 
     handle_computation_type_setter: function (model, graph, json, node) {
-        node.value = json.description
+        //node.value = json.description
     },
 
     handle_start_phase_for_code: function (model, graph, json) {

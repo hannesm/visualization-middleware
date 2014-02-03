@@ -113,12 +113,22 @@ define function out (o :: <object>)
   end;
 end;
 
+define function psp (o :: <signature-spec>)
+  block ()
+    let str = make(<byte-string-stream>, direction: #"output");
+    print-specializers(o, str);
+    str.stream-contents.quote-html
+  end;
+end;
+
 define method execute (c :: <build-command>, #rest args)
   let name = args[0];
   dbg("name is %s args are %=\n", name, args);
   dynamic-bind(*trace-dfm-callback* = write-to-event-stream)
     dynamic-bind(*trace-dfm-outputter* = out)
-      build(name)
+      dynamic-bind(*trace-dfm-method-printer* = psp)
+        build(name)
+      end;
     end;
   end;
   list(type:, build:)

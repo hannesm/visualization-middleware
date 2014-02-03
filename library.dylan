@@ -17,6 +17,8 @@ define library visualization-middleware
   //dfmc-conversion calls word-size(),
   //which calls back-end-word-size(current-backend())
   use dfmc-back-end-implementations;
+  //for <signature-spec>
+  use dfmc-definitions;
 
   use http-common;
   use http-server;
@@ -42,6 +44,8 @@ define module visualization-middleware
   use environment-protocols, exclude: { application-arguments,
                                         application-filename };
   use build-system, import: { target-platform-name };
+  use dfmc-definitions, import: { <signature-spec> };
+
 
   //web stuff
   use http-common;
