@@ -103,27 +103,30 @@ make(<build-command>,
      description: "Builds the specified project",
      signature: "<project-name>");
 
-define function out (o :: <object>)
+define method out (o :: <object>)
   block ()
-    structured-output(o)
+    o.structured-output.quote-html
   exception (c :: <condition>)
     let str = make(<byte-string-stream>, direction: #"output");
     print-object(o, str);
-    str.stream-contents
+    str.stream-contents.quote-html
   end;
+end;
+
+define method out (o :: <string>)
+  o.quote-html
 end;
 
 define function psp (o :: <signature-spec>)
   block ()
     let str = make(<byte-string-stream>, direction: #"output");
     print-specializers(o, str);
-    str.stream-contents.quote-html
+    str.stream-contents
   end;
 end;
 
 define method execute (c :: <build-command>, #rest args)
   let name = args[0];
-  dbg("name is %s args are %=\n", name, args);
   dynamic-bind(*trace-dfm-callback* = write-to-event-stream)
     dynamic-bind(*trace-dfm-outputter* = out)
       dynamic-bind(*trace-dfm-method-printer* = psp)

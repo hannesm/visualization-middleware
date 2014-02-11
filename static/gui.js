@@ -42,8 +42,11 @@ function initialize () {
                 control.models[id] = model
                 var li = document.createElement("li")
                 li.innerHTML = id
-                var cb = function (c, m) { c.setActiveModel(m) }
-                li.onclick = cb.curry(control, model)
+                var cb = function (parent, ele, c, m) {
+                    highlightElement(parent, ele)
+                    c.setActiveModel(m)
+                }
+                li.onclick = cb.curry(forms, li, control, model)
                 forms.appendChild(li)
                 if (control.activeModel == undefined)
                     control.setActiveModel(model)
@@ -58,9 +61,9 @@ function initialize () {
                 if (res.old != undefined)
                     args.push(graph.findNodeByID(res.old))
                 control[fun].apply(control, args)
-                console.log("safely called " + fun)
             } catch (e) {
                 model.errors.push([e, fun, val])
+                console.log(e, "error " + e.message + " in " + fun + ": " + val)
             }
         } catch (e) {
             var li = document.createElement("li")
@@ -108,6 +111,7 @@ function handleKeypress (output, inputfield, control, event) {
     switch (keyCode) {
     case 13: //return
         var cmd = val.split(" ")
+        clearElement(output)
         if (control["before" + cmd[0]])
             control["before" + cmd[0]]()
         var oReq = new XMLHttpRequest()
@@ -116,6 +120,7 @@ function handleKeypress (output, inputfield, control, event) {
         oReq.send()
         break
     case 191: //?
+        clearElement(output)
         var oReq = new XMLHttpRequest()
         oReq.onload = cb.curry(control, output, inputfield)
         oReq.open("get", ("/execute/help"), true)
@@ -127,9 +132,10 @@ function handleKeypress (output, inputfield, control, event) {
 
 
 
-function Phase (name, graph) {
+function Phase (name, graph, force) {
     this.name = name
     this.graph = graph
+    this.forced = force
 }
 function Model (method, graph) {
     this.method = method
@@ -140,7 +146,7 @@ function Model (method, graph) {
 }
 Model.prototype = {
     getGraph: function () {
-        if ((this.activePhase == null) | (this.activePhase.graph == null))
+        if ((this.activePhase == null) || (this.activePhase.graph == null))
             console.log("undefined!!")
         return this.activePhase.graph
     },
@@ -150,12 +156,19 @@ Model.prototype = {
     },
 
     addPhase: function (name, force) {
-        if (! this.getGraph().modified)
-            this.phases.pop
-        else
-            this.activePhase.graph.mutable = false
-        var graph = this.getGraph().copy()
-        var phase = new Phase(name, graph)
+        if (this.ready)
+            throw "trying to modify a finished TLD"
+        var graph = this.getGraph()
+        if (graph.modified)
+            graph.mutable = false
+        else {
+            var lastphase = this.phases.pop()
+            if (lastphase.forced)
+                this.phases.push(lastphase)
+        }
+        var newgraph = graph.copy()
+        newgraph.check()
+        var phase = new Phase(name, newgraph, force)
         this.phases.push(phase)
         this.setActivePhase(phase)
     },
@@ -168,7 +181,6 @@ function Control () {
 }
 Control.prototype = {
     executehelp: function (output, res) {
-        clearElement(output)
         var table = document.createElement("table")
         var tr = document.createElement("tr")
         var f = document.createElement("th")
@@ -204,7 +216,6 @@ Control.prototype = {
     },
 
     executelist: function (output, res) {
-        clearElement(output)
         var ul = document.createElement("ul")
         for (var i = 0 ; i < res.projects.length ; i++) {
             var li = document.createElement("li")
@@ -215,7 +226,6 @@ Control.prototype = {
     },
 
     executefilter: function (output, res) {
-        clearElement(output)
         var ul = document.createElement("ul")
         var l = document.createElement("li")
         l.innerHTML = "library: " + res.library
@@ -230,7 +240,6 @@ Control.prototype = {
     },
 
     executebuild: function (output, res) {
-        clearElement(output)
         var ul = document.createElement("ul")
         var l = document.createElement("li")
         l.innerHTML = "build successful!"
@@ -273,55 +282,78 @@ Control.prototype = {
             var phase = model.phases[i]
             var ele = document.createElement("li")
             ele.innerHTML = "[" + phase.graph.nodes.length + " N, " + phase.graph.edges.length + " E] " + phase.name
-            var cb = function (model, phase) {
+            var cb = function (parent, ele, model, phase) {
+                highlightElement(parent, ele)
                 model.setActivePhase(phase)
             }
-            ele.onclick = cb.curry(model, model.phases[i])
+            ele.onclick = cb.curry(phaselist, ele, model, model.phases[i])
             phaselist.appendChild(ele)
         }
     },
 
     handle_new_computation: function (model, graph, json) {
-        graph.insertNodeByID(json.nodeid, json.description[1])
+        var ele = document.createElement("li")
+        ele.innerHTML = json.description
+        var desc = ele.textContent
+        graph.insertNodeByID(json.nodeid, desc)
     },
 
     handle_new_temporary: function (model, graph, json, node, other) {
-        var node = graph.insertNodeByID(json.nodeid, json.description[1])
+        var ele = document.createElement("li")
+        ele.innerHTML = json.description
+        var desc = ele.textContent
+        var node = graph.insertNodeByID(json.nodeid, desc)
         node.fillStyle = "lightblue"
         //it is the generator!
-        var edge = graph.connect(other, node)
-        if (edge)
-            edge.strokeStyle = "lightblue"
+        if (other) {
+            var edge = graph.connect(other, node)
+            if (edge)
+                edge.strokeStyle = "lightblue"
+        }
     },
 
     handle_new_object_reference: function (model, graph, json, node, other) {
-        var node = graph.insertNodeByID(json.nodeid, json.description[1])
+        var ele = document.createElement("li")
+        ele.innerHTML = json.description
+        var desc = ele.textContent
+        var node = graph.insertNodeByID(json.nodeid, desc)
         node.fillStyle = "lightblue"
         //it is the first user!
-        var edge = graph.connect(node, other)
-        if (edge)
-            edge.strokeStyle = "lightblue"
+        if (other) {
+            var edge = graph.connect(node, other)
+            if (edge)
+                edge.strokeStyle = "lightblue"
+        }
     },
 
     handle_next_computation_setter: function (model, graph, json, node, other, old) {
-        graph.disconnect(node, old)
-        var edge = graph.connect(node, other)
-        if (edge)
-            edge.strokeStyle = "black"
+        if (node && old && node != old)
+            graph.disconnect(node, old)
+        if (node && other && node != other) {
+            var edge = graph.connect(node, other)
+            if (edge)
+                edge.strokeStyle = "black"
+        }
     },
 
     handle_consequent_setter: function (model, graph, json, node, other, old) {
-        graph.disconnect(node, old)
-        var edge = graph.connect(node, other)
-        if (edge)
-            edge.strokeStyle = "green"
+        if (node && old && node != old)
+            graph.disconnect(node, old)
+        if (node && other && node != other) {
+            var edge = graph.connect(node, other)
+            if (edge)
+                edge.strokeStyle = "green"
+        }
     },
 
     handle_alternative_setter: function (model, graph, json, node, other, old) {
-        graph.disconnect(node, old)
-        var edge = graph.connect(node, other)
-        if (edge)
-            edge.strokeStyle = "red"
+        if (node && old && node != old)
+            graph.disconnect(node, old)
+        if (node && other && node != other) {
+            var edge = graph.connect(node, other)
+            if (edge)
+                edge.strokeStyle = "red"
+        }
     },
 
     handle_remove_temporary: function (model, graph, json, node) {
@@ -337,16 +369,21 @@ Control.prototype = {
     },
 
     handle_add_temporary_user: function (model, graph, json, node, other) {
-        var edge = graph.connect(node, other)
-        if (edge)
-            edge.strokeStyle = "lightblue"
+        if (node && other && node != other) {
+            var edge = graph.connect(node, other)
+            if (edge)
+                edge.strokeStyle = "lightblue"
+        }
     },
 
     handle_function_setter: function (model, graph, json, node, other, old) {
-        graph.disconnect(old, node)
-        var edge = graph.connect(other, node)
-        if (edge)
-            edge.strokeStyle = "lightblue"
+        if (old && node && old != node)
+            graph.disconnect(old, node)
+        if (other && node && other != node) {
+            var edge = graph.connect(other, node)
+            if (edge)
+                edge.strokeStyle = "lightblue"
+        }
     },
 
     handle_call_iepQ_setter: function (model, graph, json, node) {
@@ -355,10 +392,13 @@ Control.prototype = {
     },
 
     handle_generator_setter: function (model, graph, json, node, other, old) {
-        graph.disconnect(old, node)
-        var edge = graph.connect(other, node)
-        if (edge)
-            edge.strokeStyle = "lightblue"
+        if (old && node && old != node)
+            graph.disconnect(old, node)
+        if (other && node && other != node) {
+            var edge = graph.connect(other, node)
+            if (edge)
+                edge.strokeStyle = "lightblue"
+        }
     },
 
     handle_computation_type_setter: function (model, graph, json, node) {
@@ -370,7 +410,7 @@ Control.prototype = {
     },
 
     handle_optimizing: function (model, graph, json, node) {
-        model.addPhase(json.description + node.value)
+        model.addPhase(json.description + " " +  node.value)
     },
 
     handle_finished_phase_for_code: function (model, graph, json, node) {
@@ -385,4 +425,10 @@ Control.prototype = {
 function clearElement (element) {
     while (element.hasChildNodes())
         element.removeChild(element.firstChild)
+}
+
+function highlightElement (parent, element) {
+    for (var i = 0 ; i < parent.childNodes.length ; i++)
+        parent.childNodes[i].className = ""
+    element.className = "highlight"
 }
